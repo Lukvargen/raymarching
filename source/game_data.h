@@ -6,7 +6,7 @@
 
 #include "verlet_object.h"
 
-#define SPHERES_COUNT 10
+#define SPHERES_COUNT 5
 
 typedef struct camera_params_t
 {
@@ -55,6 +55,7 @@ typedef struct game_data_t
 	gs_handle(gs_graphics_texture_t)	rt;
 
 
+    int next_to_shoot;
     gs_dyn_array(verlet_object_t) verlet_objects;
     gs_vec4 gpu_spheres[SPHERES_COUNT];
 

@@ -10,7 +10,6 @@
 
 #include "game_data.h"
 
-#include "sdf.h"
 
 #include "physics.h"
 
@@ -119,6 +118,14 @@ void init()
 	init_frame_buffer(gd);
 	init_raymarch(gd);
 
+	for (int i=0; i < SPHERES_COUNT; i++) {
+		gs_vec3 pos = gs_v3(-30, sin(i)*5 + 20, i * 5);
+
+		verlet_object_t o = {.position_current = pos,.position_old = pos,.radius=4.0};
+		gs_dyn_array_push(gd->verlet_objects, o);
+	}
+
+
 }
 
 
@@ -139,7 +146,32 @@ void update()
 
 	camera_update(gd, delta);
 
-	sim_update(gd, delta);
+	if (gs_platform_mouse_pressed(GS_MOUSE_LBUTTON)) {
+		gs_vec3 forward = gs_camera_forward(&gd->fps_camera.cam);
+		forward.x *= 0.5;
+		forward.y *= 0.5;
+		forward.z *= 0.5;
+		
+		gd->verlet_objects[gd->next_to_shoot].position_current = gs_vec3_sub(gd->fps_camera.cam.transform.position, forward);
+		gd->verlet_objects[gd->next_to_shoot].position_old = gd->fps_camera.cam.transform.position;
+		gd->next_to_shoot += 1;
+		gd->next_to_shoot %= SPHERES_COUNT;
+	}
+
+
+	int sub_steps = 4;
+	float dt = 0.016 / sub_steps;
+	for (int i = 0; i < sub_steps; i++) {
+		sim_update(gd, dt);
+	}
+
+	// update the gpu spheres buffer
+	for (int i=0; i < gs_dyn_array_size(gd->verlet_objects); i++) {
+		if (i >= SPHERES_COUNT)
+			break;
+		verlet_object_t* o = &gd->verlet_objects[i];
+		gd->gpu_spheres[i] = gs_v4(o->position_current.x, o->position_current.y, o->position_current.z, o->radius);
+	}
 	gs_graphics_storage_buffer_update(gd->raymarch_u_spheres_buffer, &(gs_graphics_storage_buffer_desc_t) {
         .data = gd->gpu_spheres,
         .size = sizeof(gd->gpu_spheres),
@@ -150,6 +182,7 @@ void update()
             .offset = 0
         },
     });
+
 
 	draw_game(gd);
 }
@@ -290,19 +323,6 @@ void init_raymarch(game_data_t* gd)
 		.access = GS_GRAPHICS_ACCESS_READ_ONLY
 	});
 
-	for (int i=0; i < SPHERES_COUNT; i++) {
-		gd->gpu_spheres[i] = gs_v4(i*2, i*2, i*2, 4.0);
-	}
-	gs_graphics_storage_buffer_update(gd->raymarch_u_spheres_buffer, &(gs_graphics_storage_buffer_desc_t) {
-        .data = gd->gpu_spheres,
-        .size = sizeof(gd->gpu_spheres),
-        .usage = GS_GRAPHICS_BUFFER_USAGE_DYNAMIC,
-        
-        .update = {
-            .type = GS_GRAPHICS_BUFFER_UPDATE_SUBDATA,
-            .offset = 0
-        },
-    });
 
 
 	gd->raymarch_u_res = gs_graphics_uniform_create(&(gs_graphics_uniform_desc_t){
@@ -373,7 +393,7 @@ void draw_raymarch(game_data_t* gd, gs_command_buffer_t* gcb, gs_vec4 viewport)
 	//gs_println("mpos %f %f", m_pos.x, m_pos.y);
 	m_pos.x -= viewport.x;
 	m_pos.y -= viewport.y;
-	float time = (float)(gs_platform_elapsed_time() / 1000.0);
+	float time = (float)(gs_platform_elapsed_time() / 1000.0); 
 
 	static camera_params_t camera = {0};
 	camera.pos.x = gd->fps_camera.cam.transform.position.x;
@@ -428,7 +448,7 @@ void camera_update(game_data_t* gd, float delta)
 
         gs_camera_offset_orientation(&gd->fps_camera.cam, mouse_delta.x * 0.1, old_pitch - gd->fps_camera.pitch);
 
-        float speed = 4;
+        float speed = 8;
         float run = 1.0;
         gs_vec3 dir = {0};
         if (gs_platform_key_down(GS_KEYCODE_A))
@@ -465,17 +485,3 @@ void camera_update(game_data_t* gd, float delta)
 
 
 
-
-
-float map(gs_vec3 p)
-{
-	// plane
-	float plane_dist = fPlane(p, gs_v3(0, 1, 0), 14.0);
-	float planeID = 7.0;
-
-	float res = plane_dist;
-
-	return res;
-	
-
-}

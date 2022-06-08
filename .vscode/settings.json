@@ -5,6 +5,8 @@
         "miniaudio.h": "c",
         "xstring": "c",
         "xutility": "c",
-        "game_data.h": "c"
+        "game_data.h": "c",
+        "type_traits": "c",
+        "xmemory": "c"
     }
 }

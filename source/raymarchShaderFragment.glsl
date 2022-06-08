@@ -857,7 +857,7 @@ uniform sampler2D u_texture2;
 uniform sampler2D u_texture3;
 uniform sampler2D u_bumpmapGS;
 
-const int SPHERES_COUNT = 10;
+const int SPHERES_COUNT = 5;
 layout(std430, binding = 4) buffer u_spheres_buffer
 {
 	vec4 spheres[SPHERES_COUNT];
@@ -950,19 +950,19 @@ vec2 map2(vec3 p)
 	vec3 sp = p;
 	pModInterval1(sp.x, 45.0, 1, 30);
 	pModInterval1(sp.z, 45.0, -30, 30);
-	//sp.x = -abs(p.x) + 20;
-	//sp.z = -abs(p.z) + 20;
+
+	float time = u_time;//0.0;//u_time = 0.0;
 
 	vec3 sp1 = sp;
-	sp1.y += sin(u_time*0.5) * 20;
-	sp1.x += cos(u_time) * 4;
-	sp1.z += sin(u_time) * 4;
+	sp1.y += sin(time*0.5) * 20;
+	sp1.x += cos(time) * 4;
+	sp1.z += sin(time) * 4;
 	float sphere_dist = fSphere(sp1, 9.0);
 	float sphereID = 7.0;
 	vec2 sphere = vec2(sphere_dist, sphereID);
 
 	vec3 sp2 = sp;
-	sp2.y += sin(u_time) * 30;
+	sp2.y += sin(time) * 30;
 	float sphere_dist2 = fSphere(sp2, 9.0);
 	float sphereID2 = 7.0;
 	vec2 sphere2 = vec2(sphere_dist2, sphereID2);
@@ -1031,13 +1031,18 @@ vec2 map2(vec3 p)
 	// spheres
 	for (int i = 0; i < SPHERES_COUNT; i++) {
 
-		float physics_sphere_dist = fSphere(p - vec3(-30, 20, 0) - spheres[i].xyz, 4);
+		float physics_sphere_dist = fSphere(p - spheres[i].xyz, spheres[i].w);
 		float physics_sphere_id = 3.0;
 		vec2 physics_sphere = vec2(physics_sphere_dist, physics_sphere_id);
 		res = fOpUnionRoundID(res, physics_sphere, 3.0);
 	}
 
 	//res = fOpUnionID(res, wall);
+	pModInterval1(p.x, 45.0, 1, 30);
+	float test_sphere_dist = fSphere(p, 100.0);
+	vec2 test_sphere = vec2(test_sphere_dist, 7.0);
+
+	res = fOpUnionRoundID(res, test_sphere, 1.0);
 	return res;
 }
 
