@@ -877,6 +877,11 @@ vec2 fOpUnionID(vec2 res1, vec2 res2) {
    return (res1.x < res2.x) ? res1 : res2;
 }
 
+vec2 fOpUnionRoundID(vec2 res1, vec2 res2, float r) {
+	float dist = fOpUnionRound(res1.x, res2.x, r);
+	return (res1.x < res2.x) ? vec2(dist, res1.y) : vec2(dist, res2.y);
+}
+
 vec2 fOpDifferenceID(vec2 res1, vec2 res2) {
    return (res1.x > -res2.x) ? res1 : vec2(-res2.x, res2.y);
 }
@@ -896,8 +901,86 @@ vec2 fOpUnionChamferID(vec2 res1, vec2 res2, float r) {
    return (res1.x < res2.x) ? vec2(dist, res1.y) : vec2(dist, res2.y);
 }
 
+vec2 map2(vec3 p)
+{
+
+	// plane
+	float plane_dist = fPlane(p, vec3(0, 1, 0), 14.0);
+	float planeID = 2.0;
+	vec2 plane = vec2(plane_dist, planeID);
+
+	
+	vec3 sp = p;
+	pModInterval1(sp.x, 45.0, 1, 30);
+	pModInterval1(sp.z, 45.0, -30, 30);
+	//sp.x = -abs(p.x) + 20;
+	//sp.z = -abs(p.z) + 20;
+
+	vec3 sp1 = sp;
+	sp1.y += sin(u_time*0.5) * 20;
+	sp1.x += cos(u_time) * 4;
+	sp1.z += sin(u_time) * 4;
+	float sphere_dist = fSphere(sp1, 9.0);
+	float sphereID = 1.0;
+	vec2 sphere = vec2(sphere_dist, sphereID);
+
+	vec3 sp2 = sp;
+	sp2.y += sin(u_time) * 30;
+	float sphere_dist2 = fSphere(sp2, 9.0);
+	float sphereID2 = 1.0;
+	vec2 sphere2 = vec2(sphere_dist2, sphereID2);
+
+
+	// wall
+	float wall_dist = fBox2(p.xy, vec2(2, 100));
+	float wall_id = 3.0;
+	vec2 wall = vec2(wall_dist, wall_id);
+
+	// box
+	//float box_dist = fBox(p, vec3(3, 0, 4));
+	//float box_id = 3.0;
+	//vec2 box = vec2(box_dist, box_id);
+
+	// G
+	vec3 GP = p;
+	GP.y -= 50;
+	float g_dist = fBox(GP, vec3(4, 30, 30));
+	float g_id = 3.0;
+	vec2 G = vec2(g_dist, g_id);
+
+	G.x = fOpDifferenceColumns(G.x, fBox(GP, vec3(4, 25, 25)), 0.6, 3.0);
+
+
+
+	// cylinder
+	vec3 pc = p;
+	pMod1(pc.y, 85.0);
+	pc.y -= 5.0;
+	pMod1(pc.z, 15.0);
+	float cylinder_dist = fCylinder(pc.yxz, 4, 3);
+	float cylinder_id = 3.0;
+	vec2 cylinder = vec2(cylinder_dist, cylinder_id);
+
+	
+	wall = fOpDifferenceColumnsID(wall, cylinder, 0.6, 3.0);
+
+	wall = fOpDifferenceColumnsID(wall, G, 0.6, 3.0);
+
+
+	vec2 res;
+	res = fOpUnionRoundID(sphere, sphere2, 5.0);
+
+	res = fOpUnionRoundID(res, plane, 5.0);
+
+	res = fOpUnionStairsID(res, wall, 15.0, 10.0);
+	
+	//res = fOpUnionID(res, wall);
+	return res;
+}
+
 vec2 map(vec3 p) 
 {
+	return map2(p);
 
 	/*float box_dist2 = fBox(p, vec3(3, 9, 4));
 	float box_id2 = 3.0;
@@ -989,7 +1072,7 @@ vec3 get_material(vec3 p, float id, vec3 normal)
       case 1:
          m = vec3(0.9, 0.0, 0.0); break;
       case 2: // chess floor
-         m = vec3(0.2 + 0.4 * mod(floor(p.x) + floor(p.z), 2.0)); break;
+         m = vec3(0.2 + 0.4 * mod(floor(p.x*0.5) + floor(p.z*0.5), 2.0)); break;
 	case 3:
          m = vec3(0.7, 0.8, 0.9); break;
 	case 4:
@@ -1012,6 +1095,18 @@ float getSoftShadow(vec3 p, vec3 light_pos) {
     return clamp(res, 0.0, 1.0);
 }
 
+float get_ambient_occlusion(vec3 p, vec3 normal)
+{
+	float occ = 0.0;
+	float weight = 1.0;
+	for (int i = 0; i < 8; i++) {
+		float len = 0.01 + 0.02 * float(i*i);
+		float dist = map(p + normal * len).x;
+		occ += (len - dist) * weight;
+		weight *= 0.85;
+	}
+	return 1.0 - clamp(0.6 * occ, 0.0, 1.0);
+}
 
 vec3 get_light(vec3 p, vec3 rd, float id)
 {
@@ -1037,8 +1132,12 @@ vec3 get_light(vec3 p, vec3 rd, float id)
 	
 	float shadow = getSoftShadow(p + N * 0.02, normalize(light_pos));
 
+	// ambient occlusion
+	float occ = get_ambient_occlusion(p, N);
 
-   return (diffuse + ambient + specular + fresnel) * shadow;
+	vec3 back = 0.05 * color * clamp(dot(N, -L), 0.0, 1.0);
+	
+   return (back + ambient + fresnel) * occ + (specular * occ + diffuse) * shadow;
 }
 
 
@@ -1071,7 +1170,7 @@ vec3 render(vec2 uv) {
 	vec2 testuv = rect_uv * 2.0 - 1.0;
 
 	// NOTE: didn't have normalize() before which caused clipping at the edges
-   vec3 rd = mat3(u_camera.rot) * normalize(vec3(testuv, FOV));
+   vec3 rd = mat3(u_camera.rot) * normalize(vec3(uv, FOV));
    
 	//  vec3((float(pixel_coords.x * 2 - dims.x) / dims.x), (float(pixel_coords.y * 2 - dims.y) / dims.y), dist);
 	// vec3 dir = (u_camera.rot * vec4(canvas_to_viewport(pixel_coords, dims, dist), 1.0)).xyz;
@@ -1098,6 +1197,7 @@ vec2 get_uv(vec2 offset)
 {
 	vec2 uv;// = (2.0 * (gl_FragCoord.xy + offset) - u_res.xy) / u_res.xy;
 	uv.x = (2.0* (gl_FragCoord.x + offset.x - u_viewport.x) - u_viewport.z) / u_viewport.z;
+	uv.x *= 16.0/9.0;
 	uv.y = (2.0* (gl_FragCoord.y + offset.y - u_viewport.y) - u_viewport.w) / u_viewport.w;
 
 	return uv;
@@ -1126,13 +1226,13 @@ void main()
 	   col.y = 1.0;
    }*/
 
-   vec3 col = render(uv);
+   vec3 col = render(uv);//render_AAx4();//render(uv);
 	//col = vec3(rect_uv, 0.0);
    //col = vec3(uv*0.5 + 0.5, 0.0);
 
    //col.r = gl_FragCoord.x/1000.0;;
 
    // gamma correction
-   //col = pow(col, vec3(0.4545));
+   col = pow(col, vec3(0.4545));
    frag_color = vec4(col, 1.0);
 }

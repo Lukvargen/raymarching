@@ -19,8 +19,8 @@
 } while(0)
 
 
-#define RES_WIDTH 960
-#define RES_HEIGHT 540
+#define RES_WIDTH 1920 / 1
+#define RES_HEIGHT 1080 / 1
 
 
 typedef struct camera_params_t
@@ -52,12 +52,16 @@ typedef struct game_data_t
 	gs_handle(gs_graphics_uniform_t) raymarch_u_mouse;
 	gs_handle(gs_graphics_uniform_t) raymarch_u_time;
 
-	gs_handle(gs_graphics_shader_t) hg_sdf_shader;
+	
+	// framebuffer
+	gs_handle(gs_graphics_renderpass_t) rp;
+	gs_handle(gs_graphics_framebuffer_t) fbo;
+	gs_handle(gs_graphics_texture_t)	rt;
 
 
 } game_data_t;
 
-
+void init_frame_buffer(game_data_t* gd);
 void init_raymarch(game_data_t* gd);
 void draw_raymarch(game_data_t* gd, gs_command_buffer_t* gcb, gs_vec4 viewport);
 void camera_update(game_data_t* gd, float delta);
@@ -75,7 +79,37 @@ void draw_game(game_data_t* gd)
 	//gsi_circle(&gd->gsi, circle_pos.x, circle_pos.y, circle_radius, 64, 10, 10, 10, 255, GS_GRAPHICS_PRIMITIVE_TRIANGLES);
 
 
+	gs_graphics_renderpass_begin(gcb, gd->rp);
+		
+		gs_graphics_clear_desc_t clear = (gs_graphics_clear_desc_t) {
+		.actions = &(gs_graphics_clear_action_t){.color = {0.05f, 0.05f, 0.05f, 1.f}}
+		};
+		gs_graphics_clear(gcb, &clear);
 
+		//gs_graphics_set_viewport(gcb, 0, 0, ws.x, ws.y); // where to draw
+		gs_vec2 center = gs_vec2_scale(ws, 0.5);
+		gs_vec4 viewport = {0, 0, RES_WIDTH, RES_HEIGHT};
+		gs_graphics_set_viewport(gcb, 0, 0, RES_WIDTH, RES_HEIGHT);
+
+		draw_raymarch(gd, gcb, viewport);
+
+	gs_graphics_renderpass_end(gcb);
+
+	// render to backbuffer
+	gs_graphics_renderpass_begin(gcb, GS_GRAPHICS_RENDER_PASS_DEFAULT);
+		gs_graphics_set_viewport(gcb, 0, 0, ws.x, ws.y); // where to draw
+		gs_graphics_clear(gcb, &clear);
+
+
+		gsi_texture(&gd->gsi, gd->rt);
+		gsi_ortho(&gd->gsi, 0, RES_WIDTH, RES_HEIGHT, 0, 0, 10);
+		gsi_rectvd(&gd->gsi, gs_v2(0.f, 0.f), gs_v2((float)RES_WIDTH, (float)RES_HEIGHT), gs_v2(0.f, 1.f), gs_v2(1.f, 0.f), GS_COLOR_WHITE, GS_GRAPHICS_PRIMITIVE_TRIANGLES);
+		
+		gsi_draw(&gd->gsi, &gd->gcb);
+
+
+	gs_graphics_renderpass_end(gcb);
+	/*
 	gs_graphics_renderpass_begin(gcb, GS_GRAPHICS_RENDER_PASS_DEFAULT);
 		
 		gs_graphics_clear_desc_t clear = (gs_graphics_clear_desc_t) {
@@ -89,8 +123,9 @@ void draw_game(game_data_t* gd)
 		gs_graphics_set_viewport(gcb, viewport.x, viewport.y, viewport.z, viewport.w);
 		draw_raymarch(gd, gcb, viewport);
 
+	gs_graphics_renderpass_end(gcb);*/
 
-	gs_graphics_renderpass_end(gcb);
+
 
 	//gsi_renderpass_submit(&gd->gsi, &gd->gcb, ws.x, ws.y, gs_color(100, 100, 100, 255));
 	gs_graphics_command_buffer_submit(&gd->gcb);
@@ -111,6 +146,7 @@ void init()
 	gd->fps_camera.cam = gs_camera_perspective();
     gd->fps_camera.cam.transform.position = gs_v3(0.0, 8.0, 0.0);
 
+	init_frame_buffer(gd);
 	init_raymarch(gd);
 
 }
@@ -159,6 +195,34 @@ gs_app_desc_t gs_main(int32_t argc, char** argv)
 }
 
 
+
+void init_frame_buffer(game_data_t* gd)
+{
+	gd->fbo = gs_graphics_framebuffer_create(NULL);
+	
+	// construct color render target
+	gd->rt = gs_graphics_texture_create(
+		&(gs_graphics_texture_desc_t) {
+			.width = RES_WIDTH,
+			.height = RES_HEIGHT,
+			.format = GS_GRAPHICS_TEXTURE_FORMAT_RGBA8,
+			.wrap_s = GS_GRAPHICS_TEXTURE_WRAP_CLAMP_TO_EDGE,
+			.wrap_t = GS_GRAPHICS_TEXTURE_WRAP_CLAMP_TO_EDGE,
+			.min_filter = GS_GRAPHICS_TEXTURE_FILTER_NEAREST,
+			.mag_filter = GS_GRAPHICS_TEXTURE_FILTER_NEAREST,
+			//.render_target = true
+		}
+	);
+
+	// construct render pass
+	gd->rp = gs_graphics_renderpass_create(
+		&(gs_graphics_renderpass_desc_t) {
+			.fbo = gd->fbo,
+			.color = &gd->rt, // color buffer array to bind to frame buffer
+			.color_size = sizeof(gd->rt)
+		}
+	);
+}
 
 // screen
 void init_raymarch(game_data_t* gd)
