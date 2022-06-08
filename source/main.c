@@ -48,9 +48,17 @@ typedef struct game_data_t
 	gs_handle(gs_graphics_shader_t) raymarch_shader;
 	gs_handle(gs_graphics_uniform_t)  raymarch_u_camera;
 	gs_handle(gs_graphics_uniform_t) raymarch_u_viewport;
+	gs_handle(gs_graphics_uniform_t) raymarch_u_texture1;
+	gs_handle(gs_graphics_uniform_t) raymarch_u_texture2;
+	gs_handle(gs_graphics_uniform_t) raymarch_u_bumpmapGS;
 	gs_handle(gs_graphics_uniform_t) raymarch_u_res;
 	gs_handle(gs_graphics_uniform_t) raymarch_u_mouse;
 	gs_handle(gs_graphics_uniform_t) raymarch_u_time;
+
+	gs_asset_texture_t	texture1;
+	gs_asset_texture_t	texture2;
+	gs_asset_texture_t	bumpmapGS;
+
 
 	
 	// framebuffer
@@ -283,6 +291,20 @@ void init_raymarch(game_data_t* gd)
 		.name = "u_viewport",
 		.layout = &(gs_graphics_uniform_layout_desc_t){.type = GS_GRAPHICS_UNIFORM_VEC4}
 	});
+	gd->raymarch_u_texture1 = gs_graphics_uniform_create(&(gs_graphics_uniform_desc_t){
+		.name = "u_texture1",
+		.layout = &(gs_graphics_uniform_layout_desc_t){.type = GS_GRAPHICS_UNIFORM_SAMPLER2D}
+	});
+	gd->raymarch_u_texture2 = gs_graphics_uniform_create(&(gs_graphics_uniform_desc_t){
+		.name = "u_texture2",
+		.layout = &(gs_graphics_uniform_layout_desc_t){.type = GS_GRAPHICS_UNIFORM_SAMPLER2D}
+	});
+	gd->raymarch_u_bumpmapGS = gs_graphics_uniform_create(&(gs_graphics_uniform_desc_t){
+		.name = "u_bumpmapGS",
+		.layout = &(gs_graphics_uniform_layout_desc_t){.type = GS_GRAPHICS_UNIFORM_SAMPLER2D}
+	});
+
+
 	gd->raymarch_u_res = gs_graphics_uniform_create(&(gs_graphics_uniform_desc_t){
 		.name = "u_res",
 		.layout = &(gs_graphics_uniform_layout_desc_t){.type = GS_GRAPHICS_UNIFORM_VEC2}
@@ -311,6 +333,32 @@ void init_raymarch(game_data_t* gd)
             }
         }
     );
+
+
+
+	// load texture
+	gs_graphics_texture_desc_t desc = (gs_graphics_texture_desc_t){
+		.format = GS_GRAPHICS_TEXTURE_FORMAT_RGBA8,
+		.min_filter = GS_GRAPHICS_TEXTURE_FILTER_NEAREST,
+		.mag_filter = GS_GRAPHICS_TEXTURE_FILTER_NEAREST,
+		.wrap_s = GS_GRAPHICS_TEXTURE_WRAP_REPEAT,
+		.wrap_t = GS_GRAPHICS_TEXTURE_WRAP_REPEAT
+	};
+	bool success = gs_asset_texture_load_from_file("./assets/pattern2.png", &gd->texture1, &desc, true, false);
+	if (!success) {
+		gs_println("failed to load texture pattern");
+	}
+	success = gs_asset_texture_load_from_file("./assets/repeating.png", &gd->texture2, &desc, true, false);
+	if (!success) {
+		gs_println("failed to load texture repeating");
+	}
+
+	success = gs_asset_texture_load_from_file("./assets/Brick.jpg", &gd->bumpmapGS, &desc, true, false);
+	if (!success) {
+		gs_println("failed to load texture bumpmap");
+	}
+
+
 }
 
 void draw_raymarch(game_data_t* gd, gs_command_buffer_t* gcb, gs_vec4 viewport)
@@ -329,7 +377,13 @@ void draw_raymarch(game_data_t* gd, gs_command_buffer_t* gcb, gs_vec4 viewport)
     camera.pos.z = gd->fps_camera.cam.transform.position.z;
 	camera.rot_matrix = gs_quat_to_mat4(gd->fps_camera.cam.transform.rotation);
 
+
+
 	gs_graphics_bind_uniform_desc_t uniforms[] = {
+		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_texture1, .data = &gd->texture1, .binding = 0},
+		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_texture2, .data = &gd->texture2, .binding = 1},
+		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_bumpmapGS, .data = &gd->bumpmapGS, .binding = 2},
+
 		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_camera, .data = &camera},
 		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_viewport, .data = &viewport},
 		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_res, .data = &ws},

@@ -2,6 +2,8 @@
     "files.associations": {
         "cmath": "c",
         "gs_audio_impl.h": "c",
-        "miniaudio.h": "c"
+        "miniaudio.h": "c",
+        "xstring": "c",
+        "xutility": "c"
     }
 }

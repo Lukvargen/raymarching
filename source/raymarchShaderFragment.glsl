@@ -852,8 +852,14 @@ struct Camera {
     mat4 rot;
 };
 
+uniform sampler2D u_texture1;
+uniform sampler2D u_texture2;
+uniform sampler2D u_bumpmapGS;
+
+
 uniform Camera u_camera;
 uniform vec4 u_viewport;
+
 
 uniform vec2 u_res;
 uniform vec2 u_mouse;
@@ -867,6 +873,30 @@ const int MAX_STEPS = 256;
 const float MAX_DIST = 500;
 const float EPSILON = 0.001;
 
+float bump_factor = 0.21;
+
+
+vec3 tri_planar(sampler2D tex, vec3 p, vec3 normal)
+{
+	normal = abs(normal);
+	normal = pow(normal, vec3(5.0));
+	normal /= normal.x + normal.y + normal.z;
+	return (texture(tex, p.xy*0.5 + 0.5) * normal.z +
+			texture(tex, p.xz*0.5 + 0.5) * normal.y +
+			texture(tex, p.yz*0.5 + 0.5) * normal.x).rgb;
+	//return texture(tex, p.xy*0.5 + 0.5).rgb;
+}
+
+
+float bump_mapping(sampler2D tex, vec3 p, vec3 n, float dist, float factor, float scale)
+{
+	float bump = 0.0;
+	if (dist < 0.1) {
+		vec3 normal = normalize(n);
+		bump += factor * tri_planar(tex, (p * scale), normal).r;
+	}
+	return bump;
+}
 
 float fDisplace(vec3 p) {
 	pR(p.yz, sin(2.0 * u_time));
@@ -906,7 +936,7 @@ vec2 map2(vec3 p)
 
 	// plane
 	float plane_dist = fPlane(p, vec3(0, 1, 0), 14.0);
-	float planeID = 2.0;
+	float planeID = 7.0;
 	vec2 plane = vec2(plane_dist, planeID);
 
 	
@@ -933,13 +963,22 @@ vec2 map2(vec3 p)
 
 	// wall
 	float wall_dist = fBox2(p.xy, vec2(2, 100));
-	float wall_id = 3.0;
+	//wall_dist += bump_mapping(u_texture1, p, p + bump_factor, wall_dist, bump_factor, 1.0);
+	//wall_dist += bump_factor;
+	float wall_id = 5.0;//3.0;
 	vec2 wall = vec2(wall_dist, wall_id);
 
 	// box
-	//float box_dist = fBox(p, vec3(3, 0, 4));
-	//float box_id = 3.0;
-	//vec2 box = vec2(box_dist, box_id);
+	vec3 boxP = p + vec3(10, -20, 0);
+	float box_dist = fBox(boxP, vec3(15, 15, 15));
+
+	// bump_mapping(sampler2D tex, vec3 p, vec3 n, float dist, float factor, float scale)
+	
+
+	//box_dist += bump_mapping(u_bumpmapGS, boxP, boxP + bump_factor, box_dist, bump_factor, 1.0/4.0);
+	//box_dist += bump_factor;
+	float box_id = 6.0;
+	vec2 box = vec2(box_dist, box_id);
 
 	// G
 	vec3 GP = p;
@@ -952,19 +991,22 @@ vec2 map2(vec3 p)
 
 
 
+
 	// cylinder
 	vec3 pc = p;
 	pMod1(pc.y, 85.0);
 	pc.y -= 5.0;
 	pMod1(pc.z, 15.0);
 	float cylinder_dist = fCylinder(pc.yxz, 4, 3);
-	float cylinder_id = 3.0;
+	float cylinder_id = 5.0;
 	vec2 cylinder = vec2(cylinder_dist, cylinder_id);
 
 	
 	wall = fOpDifferenceColumnsID(wall, cylinder, 0.6, 3.0);
 
 	wall = fOpDifferenceColumnsID(wall, G, 0.6, 3.0);
+
+	//wall.y = 5.0;
 
 
 	vec2 res;
@@ -973,6 +1015,8 @@ vec2 map2(vec3 p)
 	res = fOpUnionRoundID(res, plane, 5.0);
 
 	res = fOpUnionStairsID(res, wall, 15.0, 10.0);
+
+	res = fOpUnionRoundID(res, box, 10.0);
 	
 	//res = fOpUnionID(res, wall);
 	return res;
@@ -1069,15 +1113,24 @@ vec3 get_material(vec3 p, float id, vec3 normal)
 {
    vec3 m;
    switch (int(id)) {
-      case 1:
-         m = vec3(0.9, 0.0, 0.0); break;
-      case 2: // chess floor
-         m = vec3(0.2 + 0.4 * mod(floor(p.x*0.5) + floor(p.z*0.5), 2.0)); break;
+    case 1:
+        m = vec3(0.9, 0.0, 0.0); break;
+	case 2: // chess floor
+        m = vec3(0.2 + 0.4 * mod(floor(p.x*0.5) + floor(p.z*0.5), 2.0)); break;
 	case 3:
          m = vec3(0.7, 0.8, 0.9); break;
 	case 4:
 		vec2 i = step(fract(0.5 * p.xz), vec2(1.0/ 10.0));
         m = ((1.0 - i.x) * (1.0 - i.y)) * vec3(0.37, 0.12, 0.0); break;
+   case 5:
+	 	p += vec3(10, -20, 0);
+		m = tri_planar(u_texture1, p * 1.0/15.0, normal); break;
+	case 6:
+	 	p += vec3(10, -20, 0);
+		m = tri_planar(u_texture2, p * 1.0/15.0, normal); break;
+	
+	case 7:
+		m = tri_planar(u_bumpmapGS, p * 1.0/10.0, normal); break;
    }
    return m;
 }
