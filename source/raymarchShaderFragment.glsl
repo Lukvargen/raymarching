@@ -854,7 +854,14 @@ struct Camera {
 
 uniform sampler2D u_texture1;
 uniform sampler2D u_texture2;
+uniform sampler2D u_texture3;
 uniform sampler2D u_bumpmapGS;
+
+const int SPHERES_COUNT = 10;
+layout(std430, binding = 4) buffer u_spheres_buffer
+{
+	vec4 spheres[SPHERES_COUNT];
+};
 
 
 uniform Camera u_camera;
@@ -951,13 +958,13 @@ vec2 map2(vec3 p)
 	sp1.x += cos(u_time) * 4;
 	sp1.z += sin(u_time) * 4;
 	float sphere_dist = fSphere(sp1, 9.0);
-	float sphereID = 1.0;
+	float sphereID = 7.0;
 	vec2 sphere = vec2(sphere_dist, sphereID);
 
 	vec3 sp2 = sp;
 	sp2.y += sin(u_time) * 30;
 	float sphere_dist2 = fSphere(sp2, 9.0);
-	float sphereID2 = 1.0;
+	float sphereID2 = 7.0;
 	vec2 sphere2 = vec2(sphere_dist2, sphereID2);
 
 
@@ -1002,6 +1009,9 @@ vec2 map2(vec3 p)
 	vec2 cylinder = vec2(cylinder_dist, cylinder_id);
 
 	
+
+
+
 	wall = fOpDifferenceColumnsID(wall, cylinder, 0.6, 3.0);
 
 	wall = fOpDifferenceColumnsID(wall, G, 0.6, 3.0);
@@ -1018,6 +1028,15 @@ vec2 map2(vec3 p)
 
 	res = fOpUnionRoundID(res, box, 10.0);
 	
+	// spheres
+	for (int i = 0; i < SPHERES_COUNT; i++) {
+
+		float physics_sphere_dist = fSphere(p - vec3(-30, 20, 0) - spheres[i].xyz, 4);
+		float physics_sphere_id = 3.0;
+		vec2 physics_sphere = vec2(physics_sphere_dist, physics_sphere_id);
+		res = fOpUnionRoundID(res, physics_sphere, 3.0);
+	}
+
 	//res = fOpUnionID(res, wall);
 	return res;
 }
@@ -1131,6 +1150,9 @@ vec3 get_material(vec3 p, float id, vec3 normal)
 	
 	case 7:
 		m = tri_planar(u_bumpmapGS, p * 1.0/10.0, normal); break;
+	
+	case 8:
+		m = tri_planar(u_texture3, p * 1.0/10.0, normal); break;
    }
    return m;
 }
@@ -1254,6 +1276,14 @@ vec2 get_uv(vec2 offset)
 	uv.y = (2.0* (gl_FragCoord.y + offset.y - u_viewport.y) - u_viewport.w) / u_viewport.w;
 
 	return uv;
+}
+
+
+vec3 renderAAx2() {
+    float bxy = int(gl_FragCoord.x + gl_FragCoord.y) & 1;
+    float nbxy = 1. - bxy;
+    vec3 colAA = (render(get_uv(vec2(0.33 * nbxy, 0.))) + render(get_uv(vec2(0.33 * bxy, 0.66))));
+    return colAA / 2.0;
 }
 
 vec3 render_AAx4()

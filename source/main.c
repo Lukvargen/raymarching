@@ -8,6 +8,12 @@
 #define GS_GUI_IMPL
 #include <gs/util/gs_gui.h>
 
+#include "game_data.h"
+
+#include "sdf.h"
+
+#include "physics.h"
+
 
 #define CLOCK_START(X) clock_t X = clock()
 #define CLOCK_END(X) gs_println(#X" %f", (double)(clock()-X))
@@ -23,51 +29,7 @@
 #define RES_HEIGHT 1080 / 1
 
 
-typedef struct camera_params_t
-{
-    gs_vec4 pos;
-    gs_mat4 rot_matrix;
-    //gs_mat4 vp;
-} camera_params_t;
 
-typedef struct fps_camera_t {
-    float pitch;
-    gs_camera_t cam;
-} fps_camera_t;
-
-typedef struct game_data_t 
-{
-	gs_command_buffer_t gcb;
-	gs_immediate_draw_t gsi;
-
-	fps_camera_t fps_camera;
-
-	gs_handle(gs_graphics_vertex_buffer_t) quad_vbo;
-	gs_handle(gs_graphics_index_buffer_t) quad_ibo;
-	gs_handle(gs_graphics_pipeline_t) raymarch_pip;
-	gs_handle(gs_graphics_shader_t) raymarch_shader;
-	gs_handle(gs_graphics_uniform_t)  raymarch_u_camera;
-	gs_handle(gs_graphics_uniform_t) raymarch_u_viewport;
-	gs_handle(gs_graphics_uniform_t) raymarch_u_texture1;
-	gs_handle(gs_graphics_uniform_t) raymarch_u_texture2;
-	gs_handle(gs_graphics_uniform_t) raymarch_u_bumpmapGS;
-	gs_handle(gs_graphics_uniform_t) raymarch_u_res;
-	gs_handle(gs_graphics_uniform_t) raymarch_u_mouse;
-	gs_handle(gs_graphics_uniform_t) raymarch_u_time;
-
-	gs_asset_texture_t	texture1;
-	gs_asset_texture_t	texture2;
-	gs_asset_texture_t	bumpmapGS;
-
-
-	
-	// framebuffer
-	gs_handle(gs_graphics_renderpass_t) rp;
-	gs_handle(gs_graphics_framebuffer_t) fbo;
-	gs_handle(gs_graphics_texture_t)	rt;
-
-
-} game_data_t;
 
 void init_frame_buffer(game_data_t* gd);
 void init_raymarch(game_data_t* gd);
@@ -176,6 +138,18 @@ void update()
 	}
 
 	camera_update(gd, delta);
+
+	sim_update(gd, delta);
+	gs_graphics_storage_buffer_update(gd->raymarch_u_spheres_buffer, &(gs_graphics_storage_buffer_desc_t) {
+        .data = gd->gpu_spheres,
+        .size = sizeof(gd->gpu_spheres),
+        .usage = GS_GRAPHICS_BUFFER_USAGE_DYNAMIC,
+        
+        .update = {
+            .type = GS_GRAPHICS_BUFFER_UPDATE_SUBDATA,
+            .offset = 0
+        },
+    });
 
 	draw_game(gd);
 }
@@ -299,10 +273,36 @@ void init_raymarch(game_data_t* gd)
 		.name = "u_texture2",
 		.layout = &(gs_graphics_uniform_layout_desc_t){.type = GS_GRAPHICS_UNIFORM_SAMPLER2D}
 	});
+	gd->raymarch_u_texture3 = gs_graphics_uniform_create(&(gs_graphics_uniform_desc_t){
+		.name = "u_texture3",
+		.layout = &(gs_graphics_uniform_layout_desc_t){.type = GS_GRAPHICS_UNIFORM_SAMPLER2D}
+	});
 	gd->raymarch_u_bumpmapGS = gs_graphics_uniform_create(&(gs_graphics_uniform_desc_t){
 		.name = "u_bumpmapGS",
 		.layout = &(gs_graphics_uniform_layout_desc_t){.type = GS_GRAPHICS_UNIFORM_SAMPLER2D}
 	});
+
+	gd->raymarch_u_spheres_buffer = gs_graphics_storage_buffer_create (&(gs_graphics_storage_buffer_desc_t){
+		.name = "u_spheres_buffer",
+		.data = NULL,
+		.size = sizeof(gd->gpu_spheres),
+		.usage = GS_GRAPHICS_BUFFER_USAGE_DYNAMIC,
+		.access = GS_GRAPHICS_ACCESS_READ_ONLY
+	});
+
+	for (int i=0; i < SPHERES_COUNT; i++) {
+		gd->gpu_spheres[i] = gs_v4(i*2, i*2, i*2, 4.0);
+	}
+	gs_graphics_storage_buffer_update(gd->raymarch_u_spheres_buffer, &(gs_graphics_storage_buffer_desc_t) {
+        .data = gd->gpu_spheres,
+        .size = sizeof(gd->gpu_spheres),
+        .usage = GS_GRAPHICS_BUFFER_USAGE_DYNAMIC,
+        
+        .update = {
+            .type = GS_GRAPHICS_BUFFER_UPDATE_SUBDATA,
+            .offset = 0
+        },
+    });
 
 
 	gd->raymarch_u_res = gs_graphics_uniform_create(&(gs_graphics_uniform_desc_t){
@@ -352,6 +352,10 @@ void init_raymarch(game_data_t* gd)
 	if (!success) {
 		gs_println("failed to load texture repeating");
 	}
+	success = gs_asset_texture_load_from_file("./assets/pattern1.png", &gd->texture3, &desc, true, false);
+	if (!success) {
+		gs_println("failed to load texture patterh1");
+	}
 
 	success = gs_asset_texture_load_from_file("./assets/Brick.jpg", &gd->bumpmapGS, &desc, true, false);
 	if (!success) {
@@ -382,7 +386,8 @@ void draw_raymarch(game_data_t* gd, gs_command_buffer_t* gcb, gs_vec4 viewport)
 	gs_graphics_bind_uniform_desc_t uniforms[] = {
 		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_texture1, .data = &gd->texture1, .binding = 0},
 		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_texture2, .data = &gd->texture2, .binding = 1},
-		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_bumpmapGS, .data = &gd->bumpmapGS, .binding = 2},
+		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_texture3, .data = &gd->texture3, .binding = 2},
+		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_bumpmapGS, .data = &gd->bumpmapGS, .binding = 3},
 
 		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_camera, .data = &camera},
 		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_viewport, .data = &viewport},
@@ -391,10 +396,15 @@ void draw_raymarch(game_data_t* gd, gs_command_buffer_t* gcb, gs_vec4 viewport)
 		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_time, .data = &time},
 	};
 
+	gs_graphics_bind_storage_buffer_desc_t storage_buffers[] = {
+		(gs_graphics_bind_storage_buffer_desc_t){.buffer = gd->raymarch_u_spheres_buffer, .binding=4}
+	};
+
 	gs_graphics_bind_desc_t binds = {
 		.vertex_buffers = {&(gs_graphics_bind_vertex_buffer_desc_t){.buffer = gd->quad_vbo}},
 		.index_buffers = {.desc = &(gs_graphics_bind_index_buffer_desc_t){.buffer = gd->quad_ibo}},
-		.uniforms = {.desc = uniforms, .size = sizeof(uniforms)}
+		.uniforms = {.desc = uniforms, .size = sizeof(uniforms)},
+		.storage_buffers = {.desc=storage_buffers, .size = sizeof(storage_buffers)}
 	};
 	
 	gs_graphics_pipeline_bind(gcb, gd->raymarch_pip);
@@ -410,6 +420,7 @@ void camera_update(game_data_t* gd, float delta)
 
     if (gs_platform_mouse_locked()) {
 
+		static gs_vec3 velocity;
 
         gs_vec2 mouse_delta = gs_platform_mouse_deltav();
         float old_pitch = gd->fps_camera.pitch;
@@ -436,10 +447,35 @@ void camera_update(game_data_t* gd, float delta)
         if (gs_platform_key_down(GS_KEYCODE_LEFT_ALT))
             run *= 100.0;
             //dir = gs_vec3_add(dir, gs_camera_down(&fps_camera.cam));
-        
-        gd->fps_camera.cam.transform.position = gs_vec3_add(gd->fps_camera.cam.transform.position, gs_vec3_scale(gs_vec3_norm(dir), run * speed * delta));
+		
+		dir = gs_vec3_norm(dir);
+		gs_vec3 target_vel = gs_vec3_scale(dir, run * speed);
+
+        velocity.x = gs_interp_linear(velocity.x, target_vel.x, 0.8*delta);
+		velocity.y = gs_interp_linear(velocity.y, target_vel.y, 0.8*delta);
+		velocity.z = gs_interp_linear(velocity.z, target_vel.z, 0.8*delta);
+		gd->fps_camera.cam.transform.position = gs_vec3_add(gd->fps_camera.cam.transform.position, gs_vec3_scale(target_vel, delta));
+
+        //gd->fps_camera.cam.transform.position = gs_vec3_add(gd->fps_camera.cam.transform.position, gs_vec3_scale(dir, run * speed * delta));
  
 
         
     }
+}
+
+
+
+
+
+float map(gs_vec3 p)
+{
+	// plane
+	float plane_dist = fPlane(p, gs_v3(0, 1, 0), 14.0);
+	float planeID = 7.0;
+
+	float res = plane_dist;
+
+	return res;
+	
+
 }

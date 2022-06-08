@@ -4,6 +4,7 @@
         "gs_audio_impl.h": "c",
         "miniaudio.h": "c",
         "xstring": "c",
-        "xutility": "c"
+        "xutility": "c",
+        "game_data.h": "c"
     }
 }
