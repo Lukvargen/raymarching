@@ -1035,7 +1035,7 @@ GS_API_DECL gs_handle(gs_graphics_shader_t) gs_graphics_shader_create(const gs_g
             glDeleteShader(shader);
 
             //Provide the infolog
-            gs_println("Opengl::opengl_compile_shader::shader: '%s'\nFAILED_TO_COMPILE: %s\n %s", desc->name, log, desc->sources[i].source);
+            gs_println("Opengl::opengl_compile_shader::shader: '%s'\nFAILED_TO_COMPILE: %s", desc->name, log);
 
             free(log);
             log = NULL;
@@ -2170,7 +2170,7 @@ void gs_graphics_command_buffer_submit(gs_command_buffer_t* cb)
                             {
                                 // Not sure what this actually does atm... 
                                 CHECK_GL_CORE(
-                                    glShaderStorageBlockBinding(shader, sbo->block_idx, location);
+                                    //glShaderStorageBlockBinding(shader, sbo->block_idx, location);
                                 );
                             } 
 

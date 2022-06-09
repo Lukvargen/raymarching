@@ -7,6 +7,7 @@
 #include "verlet_object.h"
 
 #define SPHERES_COUNT 5
+#define COLLISION_REQUEST_MAX 5
 
 typedef struct camera_params_t
 {
@@ -18,6 +19,11 @@ typedef struct fps_camera_t {
     float pitch;
     gs_camera_t cam;
 } fps_camera_t;
+
+typedef struct collision_request_t { // in_out
+    gs_vec3 pos_normal;   // normal out
+    float active_dist; // dist out
+} collision_request_t;
 
 typedef struct game_data_t 
 {
@@ -37,6 +43,9 @@ typedef struct game_data_t
 	gs_handle(gs_graphics_uniform_t) raymarch_u_texture3;
 	gs_handle(gs_graphics_uniform_t) raymarch_u_bumpmapGS;
     gs_handle(gs_graphics_storage_buffer_t)  raymarch_u_spheres_buffer;
+	gs_handle(gs_graphics_storage_buffer_t)  raymarch_u_collision_requests;
+	
+	gs_handle(gs_graphics_texture_t)	raymarch_output_texture;
 
 	gs_handle(gs_graphics_uniform_t) raymarch_u_res;
 	gs_handle(gs_graphics_uniform_t) raymarch_u_mouse;
@@ -54,6 +63,7 @@ typedef struct game_data_t
 	gs_handle(gs_graphics_framebuffer_t) fbo;
 	gs_handle(gs_graphics_texture_t)	rt;
 
+	collision_request_t collision_requests[COLLISION_REQUEST_MAX];
 
     int next_to_shoot;
     gs_dyn_array(verlet_object_t) verlet_objects;

@@ -24,8 +24,8 @@
 } while(0)
 
 
-#define RES_WIDTH 1920 / 1
-#define RES_HEIGHT 1080 / 1
+#define RES_WIDTH 1920
+#define RES_HEIGHT 1080//1080
 
 
 
@@ -41,10 +41,39 @@ void draw_game(game_data_t* gd)
 
 	gs_vec2 ws = gs_platform_framebuffer_sizev(gs_platform_main_window());
 
-    gsi_camera2D(&gd->gsi, (uint32_t)ws.x, (uint32_t)ws.y);
 
-	gs_vec2 circle_pos = gs_v2(320, 320);
-	float circle_radius = 200;
+	gs_println("gd->collision_requests[0] %f", gd->collision_requests[0].active_dist);
+	/*
+
+    gd->collision_requests[0] = (collision_request_t){
+		.pos_normal = gd->fps_camera.cam.transform.position,
+		.active_dist = 1.0
+	};
+	gd->collision_requests[1] = (collision_request_t){
+		.pos_normal = gd->fps_camera.cam.transform.position,
+		.active_dist = 1.0
+	};
+	gd->collision_requests[2] = (collision_request_t){
+		.pos_normal = gd->fps_camera.cam.transform.position,
+		.active_dist = 1.0
+	};
+	gs_graphics_storage_buffer_update(gd->raymarch_u_collision_requests, &(gs_graphics_storage_buffer_desc_t) {
+        .data = gd->collision_requests,
+        .size = sizeof(gd->collision_requests),
+        .usage = GS_GRAPHICS_BUFFER_USAGE_STREAM,
+        
+        .update = {
+            .type = GS_GRAPHICS_BUFFER_UPDATE_SUBDATA,
+            .offset = 0
+        },
+    });
+	*/
+	
+	gsi_camera2D(&gd->gsi, (uint32_t)ws.x, (uint32_t)ws.y);
+
+
+
+
 	//gsi_circle(&gd->gsi, circle_pos.x, circle_pos.y, circle_radius, 64, 10, 10, 10, 255, GS_GRAPHICS_PRIMITIVE_TRIANGLES);
 
 
@@ -70,7 +99,7 @@ void draw_game(game_data_t* gd)
 		gs_graphics_clear(gcb, &clear);
 
 
-		gsi_texture(&gd->gsi, gd->rt);
+		gsi_texture(&gd->gsi, gd->raymarch_output_texture);
 		gsi_ortho(&gd->gsi, 0, RES_WIDTH, RES_HEIGHT, 0, 0, 10);
 		gsi_rectvd(&gd->gsi, gs_v2(0.f, 0.f), gs_v2((float)RES_WIDTH, (float)RES_HEIGHT), gs_v2(0.f, 1.f), gs_v2(1.f, 0.f), GS_COLOR_WHITE, GS_GRAPHICS_PRIMITIVE_TRIANGLES);
 		
@@ -175,13 +204,14 @@ void update()
 	gs_graphics_storage_buffer_update(gd->raymarch_u_spheres_buffer, &(gs_graphics_storage_buffer_desc_t) {
         .data = gd->gpu_spheres,
         .size = sizeof(gd->gpu_spheres),
-        .usage = GS_GRAPHICS_BUFFER_USAGE_DYNAMIC,
+        .usage = GS_GRAPHICS_BUFFER_USAGE_STREAM,
         
         .update = {
             .type = GS_GRAPHICS_BUFFER_UPDATE_SUBDATA,
             .offset = 0
         },
     });
+
 
 
 	draw_game(gd);
@@ -267,18 +297,17 @@ void init_raymarch(game_data_t* gd)
 		}
 	);
 	
-	char* vertex_shader = gs_read_file_contents_into_string_null_term("source/raymarchShaderVertex.glsl", "rb", NULL);
-	char* hg_sdf_shader = gs_read_file_contents_into_string_null_term("source/hg_sdf.glsl", "rb", NULL);
-	char* fragment_shader = gs_read_file_contents_into_string_null_term("source/raymarchShaderFragment.glsl", "rb", NULL);
-	char* replace_pos = strstr(fragment_shader, "HG_SDF");
+	//char* vertex_shader = gs_read_file_contents_into_string_null_term("source/raymarchShaderVertex.glsl", "rb", NULL);
+	//char* hg_sdf_shader = gs_read_file_contents_into_string_null_term("source/hg_sdf.glsl", "rb", NULL);
+	//char* fragment_shader = gs_read_file_contents_into_string_null_term("source/raymarchShaderFragment.glsl", "rb", NULL);
+	char* compute_shader = gs_read_file_contents_into_string_null_term("source/raymarchComputeShader.glsl", "rb", NULL);
 
 	gd->raymarch_shader = gs_graphics_shader_create(
 		&(gs_graphics_shader_desc_t) {
 			.sources = (gs_graphics_shader_source_desc_t[]) {
-				{.type = GS_GRAPHICS_SHADER_STAGE_VERTEX, .source = vertex_shader},
-				{.type = GS_GRAPHICS_SHADER_STAGE_FRAGMENT, .source = fragment_shader},
+				{.type = GS_GRAPHICS_SHADER_STAGE_COMPUTE, .source = compute_shader},
 			},
-			.size = 2 * sizeof(gs_graphics_shader_source_desc_t),
+			.size = 1 * sizeof(gs_graphics_shader_source_desc_t),
 			.name = "raymarching_shader"
 		}
 	);
@@ -319,8 +348,15 @@ void init_raymarch(game_data_t* gd)
 		.name = "u_spheres_buffer",
 		.data = NULL,
 		.size = sizeof(gd->gpu_spheres),
-		.usage = GS_GRAPHICS_BUFFER_USAGE_DYNAMIC,
+		.usage = GS_GRAPHICS_BUFFER_USAGE_STREAM,
 		.access = GS_GRAPHICS_ACCESS_READ_ONLY
+	});
+	gd->raymarch_u_collision_requests = gs_graphics_storage_buffer_create (&(gs_graphics_storage_buffer_desc_t){
+		.name = "u_collision_request",
+		.data = gd->collision_requests,
+		.size = sizeof(gd->collision_requests),
+		.usage = GS_GRAPHICS_BUFFER_USAGE_STREAM,
+		.access = GS_GRAPHICS_ACCESS_READ_WRITE,
 	});
 
 
@@ -338,19 +374,24 @@ void init_raymarch(game_data_t* gd)
 		.layout = &(gs_graphics_uniform_layout_desc_t){.type = GS_GRAPHICS_UNIFORM_FLOAT}
 	});
 
+	gd->raymarch_output_texture = gs_graphics_texture_create (
+		&(gs_graphics_texture_desc_t) {
+			.width = RES_WIDTH,
+			.height = RES_HEIGHT, 
+			.wrap_s = GS_GRAPHICS_TEXTURE_WRAP_REPEAT,
+			.wrap_t = GS_GRAPHICS_TEXTURE_WRAP_REPEAT,
+			.min_filter = GS_GRAPHICS_TEXTURE_FILTER_NEAREST,
+			.mag_filter = GS_GRAPHICS_TEXTURE_FILTER_NEAREST,
+			.format = GS_GRAPHICS_TEXTURE_FORMAT_RGBA32F,
+			.data = NULL
+		}
+	);
+
 	gd->raymarch_pip = gs_graphics_pipeline_create (
         &(gs_graphics_pipeline_desc_t) {
-            .raster = {
-                .shader = gd->raymarch_shader,
-                .index_buffer_element_size = sizeof(uint32_t) 
-            },
-            .layout = {
-                .attrs = (gs_graphics_vertex_attribute_desc_t[]){
-                    {.format = GS_GRAPHICS_VERTEX_ATTRIBUTE_FLOAT2, .name = "a_pos"},
-					{.format = GS_GRAPHICS_VERTEX_ATTRIBUTE_FLOAT2, .name = "a_uv"}
-                },
-                .size = 2 * sizeof(gs_graphics_vertex_attribute_desc_t)
-            }
+			.compute = {
+				.shader = gd->raymarch_shader
+			}
         }
     );
 
@@ -402,35 +443,37 @@ void draw_raymarch(game_data_t* gd, gs_command_buffer_t* gcb, gs_vec4 viewport)
 	camera.rot_matrix = gs_quat_to_mat4(gd->fps_camera.cam.transform.rotation);
 
 
+	gs_graphics_bind_image_buffer_desc_t image_buffers[] = {
+		(gs_graphics_bind_image_buffer_desc_t){.tex = gd->raymarch_output_texture, .access = GS_GRAPHICS_ACCESS_WRITE_ONLY, .binding = 0}
+	};
 
 	gs_graphics_bind_uniform_desc_t uniforms[] = {
-		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_texture1, .data = &gd->texture1, .binding = 0},
-		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_texture2, .data = &gd->texture2, .binding = 1},
-		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_texture3, .data = &gd->texture3, .binding = 2},
-		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_bumpmapGS, .data = &gd->bumpmapGS, .binding = 3},
+		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_texture1, .data = &gd->texture1, .binding = 1},
+		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_texture2, .data = &gd->texture2, .binding = 2},
+		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_texture3, .data = &gd->texture3, .binding = 3},
+		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_bumpmapGS, .data = &gd->bumpmapGS, .binding = 4},
 
 		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_camera, .data = &camera},
 		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_viewport, .data = &viewport},
-		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_res, .data = &ws},
-		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_mouse, .data = &m_pos},
 		(gs_graphics_bind_uniform_desc_t){.uniform = gd->raymarch_u_time, .data = &time},
 	};
 
 	gs_graphics_bind_storage_buffer_desc_t storage_buffers[] = {
-		(gs_graphics_bind_storage_buffer_desc_t){.buffer = gd->raymarch_u_spheres_buffer, .binding=4}
+		//(gs_graphics_bind_storage_buffer_desc_t){.buffer = gd->raymarch_u_spheres_buffer, .binding=5},
+		(gs_graphics_bind_storage_buffer_desc_t){.buffer = gd->raymarch_u_collision_requests, .binding=6}
 	};
 
 	gs_graphics_bind_desc_t binds = {
-		.vertex_buffers = {&(gs_graphics_bind_vertex_buffer_desc_t){.buffer = gd->quad_vbo}},
-		.index_buffers = {.desc = &(gs_graphics_bind_index_buffer_desc_t){.buffer = gd->quad_ibo}},
 		.uniforms = {.desc = uniforms, .size = sizeof(uniforms)},
-		.storage_buffers = {.desc=storage_buffers, .size = sizeof(storage_buffers)}
+		.storage_buffers = {.desc = storage_buffers, .size = sizeof(storage_buffers)},
+		.image_buffers = {.desc = image_buffers, .size = sizeof(image_buffers)}
 	};
 	
+
+
 	gs_graphics_pipeline_bind(gcb, gd->raymarch_pip);
 	gs_graphics_apply_bindings(gcb, &binds);
-	gs_graphics_draw(gcb, &(gs_graphics_draw_desc_t){.start = 0, .count = 6});
-
+	gs_graphics_dispatch_compute(gcb, (RES_WIDTH / 8), (RES_HEIGHT / 8), 1);
 }
 
 

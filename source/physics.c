@@ -95,9 +95,9 @@ void verlet_solve_collisions(game_data_t* gd)
 
 gs_vec3 get_normal(gs_vec3 p)
 {
-   float EPSILON = 0.001;
-    float map_p = map(p);
-    gs_vec3 n = gs_vec3_sub(gs_v3(map_p,map_p,map_p), gs_v3(map(gs_vec3_sub(p, gs_v3(EPSILON, 0, 0))),
+	float EPSILON = 0.001;
+	float map_p = map(p);
+	gs_vec3 n = gs_vec3_sub(gs_v3(map_p,map_p,map_p), gs_v3(map(gs_vec3_sub(p, gs_v3(EPSILON, 0, 0))),
                                                             map(gs_vec3_sub(p, gs_v3(0, EPSILON, 0))),
                                                             map(gs_vec3_sub(p, gs_v3(0, 0, EPSILON)))));
    return gs_vec3_norm(n);
