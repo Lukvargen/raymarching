@@ -24,8 +24,8 @@
 } while(0)
 
 
-#define RES_WIDTH 1920
-#define RES_HEIGHT 1080//1080
+#define RES_WIDTH  1920
+#define RES_HEIGHT 1080
 
 
 
@@ -42,7 +42,7 @@ void draw_game(game_data_t* gd)
 	gs_vec2 ws = gs_platform_framebuffer_sizev(gs_platform_main_window());
 
 
-	gs_println("gd->collision_requests[0] %f", gd->collision_requests[0].active_dist);
+	//gs_println("gd->collision_requests[0] %f", gd->collision_requests[0].active_dist);
 	/*
 
     gd->collision_requests[0] = (collision_request_t){
@@ -73,10 +73,6 @@ void draw_game(game_data_t* gd)
 
 
 
-
-	//gsi_circle(&gd->gsi, circle_pos.x, circle_pos.y, circle_radius, 64, 10, 10, 10, 255, GS_GRAPHICS_PRIMITIVE_TRIANGLES);
-
-
 	gs_graphics_renderpass_begin(gcb, gd->rp);
 		
 		gs_graphics_clear_desc_t clear = (gs_graphics_clear_desc_t) {
@@ -84,7 +80,6 @@ void draw_game(game_data_t* gd)
 		};
 		gs_graphics_clear(gcb, &clear);
 
-		//gs_graphics_set_viewport(gcb, 0, 0, ws.x, ws.y); // where to draw
 		gs_vec2 center = gs_vec2_scale(ws, 0.5);
 		gs_vec4 viewport = {0, 0, RES_WIDTH, RES_HEIGHT};
 		gs_graphics_set_viewport(gcb, 0, 0, RES_WIDTH, RES_HEIGHT);
@@ -107,25 +102,8 @@ void draw_game(game_data_t* gd)
 
 
 	gs_graphics_renderpass_end(gcb);
-	/*
-	gs_graphics_renderpass_begin(gcb, GS_GRAPHICS_RENDER_PASS_DEFAULT);
-		
-		gs_graphics_clear_desc_t clear = (gs_graphics_clear_desc_t) {
-		.actions = &(gs_graphics_clear_action_t){.color = {0.05f, 0.05f, 0.05f, 1.f}}
-		};
-		gs_graphics_clear(gcb, &clear);
+	
 
-		//gs_graphics_set_viewport(gcb, 0, 0, ws.x, ws.y); // where to draw
-		gs_vec2 center = gs_vec2_scale(ws, 0.5);
-		gs_vec4 viewport = {center.x- RES_WIDTH/2, center.y-RES_HEIGHT/2, RES_WIDTH, RES_HEIGHT};
-		gs_graphics_set_viewport(gcb, viewport.x, viewport.y, viewport.z, viewport.w);
-		draw_raymarch(gd, gcb, viewport);
-
-	gs_graphics_renderpass_end(gcb);*/
-
-
-
-	//gsi_renderpass_submit(&gd->gsi, &gd->gcb, ws.x, ws.y, gs_color(100, 100, 100, 255));
 	gs_graphics_command_buffer_submit(&gd->gcb);
 }
 
@@ -137,12 +115,8 @@ void init()
 	gd->gcb = gs_command_buffer_new();
 	gd->gsi = gs_immediate_draw_new();
 
-
-
-
-
 	gd->fps_camera.cam = gs_camera_perspective();
-    gd->fps_camera.cam.transform.position = gs_v3(0.0, 8.0, 0.0);
+    gd->fps_camera.cam.transform.position = gs_v3(-100.0, 8.0, 0.0);
 
 	init_frame_buffer(gd);
 	init_raymarch(gd);
@@ -153,7 +127,6 @@ void init()
 		verlet_object_t o = {.position_current = pos,.position_old = pos,.radius=4.0};
 		gs_dyn_array_push(gd->verlet_objects, o);
 	}
-
 
 }
 
@@ -213,7 +186,6 @@ void update()
     });
 
 
-
 	draw_game(gd);
 }
 
@@ -255,7 +227,6 @@ void init_frame_buffer(game_data_t* gd)
 			.wrap_t = GS_GRAPHICS_TEXTURE_WRAP_CLAMP_TO_EDGE,
 			.min_filter = GS_GRAPHICS_TEXTURE_FILTER_NEAREST,
 			.mag_filter = GS_GRAPHICS_TEXTURE_FILTER_NEAREST,
-			//.render_target = true
 		}
 	);
 
@@ -297,9 +268,6 @@ void init_raymarch(game_data_t* gd)
 		}
 	);
 	
-	//char* vertex_shader = gs_read_file_contents_into_string_null_term("source/raymarchShaderVertex.glsl", "rb", NULL);
-	//char* hg_sdf_shader = gs_read_file_contents_into_string_null_term("source/hg_sdf.glsl", "rb", NULL);
-	//char* fragment_shader = gs_read_file_contents_into_string_null_term("source/raymarchShaderFragment.glsl", "rb", NULL);
 	char* compute_shader = gs_read_file_contents_into_string_null_term("source/raymarchComputeShader.glsl", "rb", NULL);
 
 	gd->raymarch_shader = gs_graphics_shader_create(
@@ -428,10 +396,9 @@ void init_raymarch(game_data_t* gd)
 
 void draw_raymarch(game_data_t* gd, gs_command_buffer_t* gcb, gs_vec4 viewport)
 {
-	gs_vec2 ws = gs_v2(RES_WIDTH, RES_HEIGHT);//gs_platform_window_sizev(gs_platform_main_window());
+	gs_vec2 ws = gs_v2(RES_WIDTH, RES_HEIGHT);
 	
 	gs_vec2 m_pos = gs_platform_mouse_positionv();
-	//gs_println("mpos %f %f", m_pos.x, m_pos.y);
 	m_pos.x -= viewport.x;
 	m_pos.y -= viewport.y;
 	float time = (float)(gs_platform_elapsed_time() / 1000.0); 
@@ -459,7 +426,7 @@ void draw_raymarch(game_data_t* gd, gs_command_buffer_t* gcb, gs_vec4 viewport)
 	};
 
 	gs_graphics_bind_storage_buffer_desc_t storage_buffers[] = {
-		//(gs_graphics_bind_storage_buffer_desc_t){.buffer = gd->raymarch_u_spheres_buffer, .binding=5},
+		(gs_graphics_bind_storage_buffer_desc_t){.buffer = gd->raymarch_u_spheres_buffer, .binding=5},
 		(gs_graphics_bind_storage_buffer_desc_t){.buffer = gd->raymarch_u_collision_requests, .binding=6}
 	};
 
@@ -509,7 +476,6 @@ void camera_update(game_data_t* gd, float delta)
             run = 10.0;
         if (gs_platform_key_down(GS_KEYCODE_LEFT_ALT))
             run *= 100.0;
-            //dir = gs_vec3_add(dir, gs_camera_down(&fps_camera.cam));
 		
 		dir = gs_vec3_norm(dir);
 		gs_vec3 target_vel = gs_vec3_scale(dir, run * speed);
@@ -519,7 +485,6 @@ void camera_update(game_data_t* gd, float delta)
 		velocity.z = gs_interp_linear(velocity.z, target_vel.z, 0.8*delta);
 		gd->fps_camera.cam.transform.position = gs_vec3_add(gd->fps_camera.cam.transform.position, gs_vec3_scale(target_vel, delta));
 
-        //gd->fps_camera.cam.transform.position = gs_vec3_add(gd->fps_camera.cam.transform.position, gs_vec3_scale(dir, run * speed * delta));
  
 
         

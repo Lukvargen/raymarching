@@ -858,10 +858,10 @@ uniform sampler2D u_texture3;
 uniform sampler2D u_bumpmapGS;
 
 const int SPHERES_COUNT = 5;
-//layout(std430, binding = 5) buffer u_spheres_buffer
-//{
-//	vec4 spheres[SPHERES_COUNT];
-//};
+layout(std430, binding = 5) buffer u_spheres_buffer
+{
+	vec4 spheres[SPHERES_COUNT];
+};
 
 
 struct CollisionRequest {
@@ -1038,14 +1038,13 @@ vec2 map2(vec3 p)
 	res = fOpUnionRoundID(res, box, 10.0);
 	
 	// spheres
-    /*
 	for (int i = 0; i < SPHERES_COUNT; i++) {
 
 		float physics_sphere_dist = fSphere(p - spheres[i].xyz, spheres[i].w);
 		float physics_sphere_id = 3.0;
 		vec2 physics_sphere = vec2(physics_sphere_dist, physics_sphere_id);
 		res = fOpUnionRoundID(res, physics_sphere, 3.0);
-	}*/
+	}
 
 	//res = fOpUnionID(res, wall);
 	pModInterval1(p.x, 45.0, 1, 30);
@@ -1284,7 +1283,6 @@ vec3 renderAAx2() {
 
 vec3 render_AAx4()
 {
-	// swizzling operation, pretty self explained
 	vec4 e = vec4(0.125, -0.125, 0.375, -0.375);
 	vec3 colAA = render(get_uv(e.xz)) + render(get_uv(e.yw)) + render(get_uv(e.wx)) + render(get_uv(e.zy));
 	return colAA /= 4.0;
@@ -1298,20 +1296,10 @@ void main()
     ivec2 pixel_coords = ivec2(gl_GlobalInvocationID.xy);
     vec2 uv = get_uv(vec2(0.0));
 
-   vec3 col = render(uv); //render_AAx4();
+    vec3 col = render(uv); //render_AAx4();
 
-   // gamma correction
+    // gamma correction
     col = pow(col, vec3(0.4545));
-    //col = vec3(0.0);
-    //col.r = collisionRequests[0].active_dist;
-    //col.g = collisionRequests[1].active_dist;
-    //col.b = collisionRequests[2].active_dist;
 
-
-    collisionRequests[0].active_dist = 10.0;
-
-    //col.b = collisionRequests[1].active_dist;
-    //collisionRequests[0].active_dist = 10;
-    //col.r = collisionRequests[0].active_dist;
     imageStore(img_output, pixel_coords, vec4(col, 1.0));
 }

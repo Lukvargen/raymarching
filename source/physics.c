@@ -13,8 +13,6 @@
 float map(gs_vec3 p)
 {
     float time = (float)(gs_platform_elapsed_time() / 1000.0); 
-    //time = 0;
-	// plane
 	float plane_dist = fPlane(p, gs_v3(0, 1, 0), 14.0);
 	float planeID = 7.0;
 
@@ -110,22 +108,6 @@ void sim_update(game_data_t* gd, float dt)
 		verlet_accelerate(&gd->verlet_objects[i], gravity);
 	}
 
-	// apply constraints
-    /*
-	gs_vec2 circle_pos = gs_v2(320, 320);
-	float circle_radius = 200;
-	for (int i = 0; i < gs_dyn_array_size(gd->verlet_objects); i++) {
-		verlet_object_t* v_o = &gd->verlet_objects[i];
-		gs_vec3 to_circle = gs_vec3_sub(v_o->position_current, circle_pos);
-		float dist = gs_vec3_len(to_circle);
-		if (dist > circle_radius - v_o->radius) {
-			gs_vec2 n = to_circle;
-			n.x /= dist;
-			n.y /= dist;
-			v_o->position_current = gs_vec2_add(circle_pos, gs_vec2_scale(n, circle_radius - v_o->radius));
-		}
-	}
-    */
 
     for (int i = 0; i < gs_dyn_array_size(gd->verlet_objects); i++) {
         
@@ -135,17 +117,12 @@ void sim_update(game_data_t* gd, float dt)
         float diff = dist- v_o->radius;
 
         if (diff < 0) {
-            gs_vec3 n = get_normal(v_o->position_current); //gs_v3(0, 1, 0);
+            gs_vec3 n = get_normal(v_o->position_current);
             v_o->position_current = gs_vec3_sub(v_o->position_current, gs_vec3_scale(n, diff));
         }
     }
 
-
-
-
-	//CLOCK_START(SOLVE_COLLISIONS);
 	verlet_solve_collisions(gd);
-	//CLOCK_END(SOLVE_COLLISIONS);
 
 	for (int i = 0; i < gs_dyn_array_size(gd->verlet_objects); i++) {
 		verlet_update_position(&gd->verlet_objects[i], dt);

@@ -1,7 +1,6 @@
-
-
 #include <gs/gs.h>
 
+// translation for hg_sdf.glsl
 
 float glsl_mod(float a, float b) {
     return a - b * floor(a/b);

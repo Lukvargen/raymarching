@@ -891,7 +891,6 @@ vec3 tri_planar(sampler2D tex, vec3 p, vec3 normal)
 	return (texture(tex, p.xy*0.5 + 0.5) * normal.z +
 			texture(tex, p.xz*0.5 + 0.5) * normal.y +
 			texture(tex, p.yz*0.5 + 0.5) * normal.x).rgb;
-	//return texture(tex, p.xy*0.5 + 0.5).rgb;
 }
 
 
@@ -951,7 +950,7 @@ vec2 map2(vec3 p)
 	pModInterval1(sp.x, 45.0, 1, 30);
 	pModInterval1(sp.z, 45.0, -30, 30);
 
-	float time = u_time;//0.0;//u_time = 0.0;
+	float time = u_time;
 
 	vec3 sp1 = sp;
 	sp1.y += sin(time*0.5) * 20;
@@ -1007,10 +1006,6 @@ vec2 map2(vec3 p)
 	float cylinder_dist = fCylinder(pc.yxz, 4, 3);
 	float cylinder_id = 5.0;
 	vec2 cylinder = vec2(cylinder_dist, cylinder_id);
-
-	
-
-
 
 	wall = fOpDifferenceColumnsID(wall, cylinder, 0.6, 3.0);
 
