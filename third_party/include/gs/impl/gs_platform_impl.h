@@ -1462,9 +1462,9 @@ void  gs_platform_sleep(float ms)
 {
     #if (defined GS_PLATFORM_WIN)
 
-            timeBeginPeriod(1);
+            //timeBeginPeriod(1);
             Sleep((uint64_t)ms);
-            timeEndPeriod(1);
+            //timeEndPeriod(1);
 
     #elif (defined GS_PLATFORM_APPLE)
 
